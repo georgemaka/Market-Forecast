@@ -1,0 +1,24 @@
+{
+  "name": "sukut-market-forecasting-platform",
+  "version": "1.0.0",
+  "description": "Market forecasting platform for Sukut Construction",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "db:migrate": "cd backend && npm run db:migrate",
+    "db:seed": "cd backend && npm run db:seed",
+    "test": "concurrently \"cd backend && npm test\" \"cd frontend && npm test\"",
+    "lint": "concurrently \"cd backend && npm run lint\" \"cd frontend && npm run lint\"",
+    "typecheck": "cd frontend && npm run typecheck"
+  },
+  "keywords": ["construction", "forecasting", "market-analysis"],
+  "author": "Sukut Construction",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

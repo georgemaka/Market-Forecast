@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EXECUTIVE
+  VP_DIRECTOR
+  CONTRIBUTOR
+}
+
+enum MarketSegment {
+  ENVIRONMENTAL
+  ENERGY
+  PUBLIC_WORKS
+  RESIDENTIAL
+}
+
+enum ProjectType {
+  BACKLOG
+  SWAG
+}
+
+enum ForecastStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum PeriodStatus {
+  PLANNING
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+model User {
+  id               String          @id @default(uuid())
+  email            String          @unique
+  firstName        String
+  lastName         String
+  passwordHash     String
+  role             Role            @default(CONTRIBUTOR)
+  marketSegments   MarketSegment[]
+  isActive         Boolean         @default(true)
+  lastLoginAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  forecasts        Forecast[]
+  auditLogs        AuditLog[]
+  
+  @@map("users")
+}
+
+model ForecastPeriod {
+  id                 String       @id @default(uuid())
+  name               String
+  description        String?
+  startDate          DateTime
+  endDate            DateTime
+  submissionDeadline DateTime
+  status             PeriodStatus @default(PLANNING)
+  isLocked           Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  
+  forecasts          Forecast[]
+  reports            Report[]
+  
+  @@map("forecast_periods")
+}
+
+model Forecast {
+  id             String          @id @default(uuid())
+  userId         String
+  periodId       String
+  marketSegment  MarketSegment
+  status         ForecastStatus  @default(DRAFT)
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  rejectionReason String?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period         ForecastPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  projects       Project[]
+  
+  @@unique([userId, periodId, marketSegment])
+  @@map("forecasts")
+}
+
+model Project {
+  id                String      @id @default(uuid())
+  forecastId        String
+  name              String
+  type              ProjectType
+  estimatedValue    Float
+  probability       Int         // 0-100
+  expectedCloseDate DateTime
+  clientName        String?
+  description       String?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  forecast          Forecast    @relation(fields: [forecastId], references: [id], onDelete: Cascade)
+  
+  @@map("projects")
+}
+
+model Report {
+  id           String         @id @default(uuid())
+  periodId     String
+  name         String
+  type         String         // "executive", "segment", "detailed"
+  data         Json           // Flexible JSON storage for report data
+  generatedAt  DateTime       @default(now())
+  createdBy    String?
+  
+  period       ForecastPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  
+  @@map("reports")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // "CREATE", "UPDATE", "DELETE", "LOGIN", etc.
+  resource  String   // "forecast", "project", "user", etc.
+  resourceId String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_config")
+}
