@@ -1,4 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Job, getCurrentFiscalYear, getAvailableFiscalYears, getFiscalYearDates } from '../../utils/calculations';
+import { dataService } from '../../services/dataService';
+import MonthlyView from '../../components/MonthlyView';
+import JobAllocationInterface from '../../components/JobAllocationInterface';
+import { JobWithAllocations } from '../../utils/allocationTypes';
 
 const Projects = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,142 +16,37 @@ const Projects = () => {
   const [isViewEditModalOpen, setIsViewEditModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [jobs, setJobs] = useState([
-    {
-      id: 1,
-      market: "Environmental",
-      jobName: "Environmental Impact Assessment",
-      type: "Backlog",
-      probability: 100,
-      startDate: "2024-12-15",
-      endDate: "2025-03-30",
-      totalRevenue: 12500,
-      totalCost: 8200
-    },
-    {
-      id: 2,
-      market: "Environmental",
-      jobName: "Water Quality Analysis",
-      type: "SWAG",
-      probability: 75,
-      startDate: "2025-02-01",
-      endDate: "2025-04-15",
-      totalRevenue: 8750,
-      totalCost: 6100
-    },
-    {
-      id: 3,
-      market: "Solar",
-      jobName: "Solar Panel Installation Study",
-      type: "Backlog",
-      probability: 100,
-      startDate: "2024-11-01",
-      endDate: "2025-02-28",
-      totalRevenue: 5200,
-      totalCost: 3800
-    },
-    {
-      id: 4,
-      market: "Solar",
-      jobName: "Renewable Energy Forecast",
-      type: "SWAG",
-      probability: 45,
-      startDate: "2025-03-01",
-      endDate: "2025-05-30",
-      totalRevenue: 15000,
-      totalCost: 11200
-    },
-    {
-      id: 5,
-      market: "Residential",
-      jobName: "Housing Market Analysis",
-      type: "Backlog",
-      probability: 100,
-      startDate: "2025-01-15",
-      endDate: "2025-04-20",
-      totalRevenue: 9800,
-      totalCost: 6500
-    },
-    {
-      id: 6,
-      market: "Residential",
-      jobName: "Property Development Study",
-      type: "SWAG",
-      probability: 60,
-      startDate: "2025-03-10",
-      endDate: "2025-06-15",
-      totalRevenue: 18500,
-      totalCost: 13200
-    },
-    {
-      id: 7,
-      market: "Public Works",
-      jobName: "Infrastructure Modernization",
-      type: "Backlog",
-      probability: 100,
-      startDate: "2024-11-20",
-      endDate: "2025-05-10",
-      totalRevenue: 22000,
-      totalCost: 16800
-    },
-    {
-      id: 8,
-      market: "Public Works",
-      jobName: "Transportation Planning",
-      type: "SWAG",
-      probability: 85,
-      startDate: "2025-04-01",
-      endDate: "2025-07-30",
-      totalRevenue: 31000,
-      totalCost: 24500
-    }
-  ]);
-
-  // Markets for reference
-  const markets = ["Environmental", "Solar", "Residential", "Public Works"];
-
-  // Fiscal year helpers (November - October)
-  const getCurrentFiscalYear = () => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-based (0 = January, 10 = November)
-    
-    if (currentMonth >= 10) { // November or December
-      return currentYear;
-    } else {
-      return currentYear - 1;
-    }
-  };
-
-  const getFiscalYearDates = (fiscalYear: number) => {
-    return {
-      start: `${fiscalYear}-11-01`,
-      end: `${fiscalYear + 1}-10-31`
+  const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+  const [selectedJobForAllocation, setSelectedJobForAllocation] = useState<JobWithAllocations | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'monthly'>('table');
+  const [jobs, setJobs] = useState<Array<Job & { allocationStatus: 'not_started' | 'partial' | 'complete'; allocationPercentage: number }>>([]);
+  
+  // Load jobs from dataService
+  useEffect(() => {
+    const loadJobs = () => {
+      const jobsWithStatus = dataService.getAllJobsWithAllocationStatus();
+      setJobs(jobsWithStatus);
     };
-  };
+    
+    loadJobs();
+  }, []);
 
+  // Get markets and fiscal year data from utilities
+  const markets = dataService.getMarkets();
   const currentFiscalYear = getCurrentFiscalYear();
+  const availableFiscalYears = getAvailableFiscalYears().map(fy => fy.year);
   
   // Set default fiscal year if not already set
-  if (selectedFiscalYear === null) {
-    setSelectedFiscalYear(currentFiscalYear);
-  }
-
-  // Available fiscal years (current and next)
-  const availableFiscalYears = [
-    currentFiscalYear,
-    currentFiscalYear + 1
-  ];
-
-  // Get fiscal year dates for the selected year
-  const getActiveFiscalYearDates = () => {
-    if (selectedFiscalYear !== null) {
-      return getFiscalYearDates(selectedFiscalYear);
+  useEffect(() => {
+    if (selectedFiscalYear === null) {
+      setSelectedFiscalYear(currentFiscalYear);
     }
-    return getFiscalYearDates(currentFiscalYear);
-  };
+  }, [selectedFiscalYear, currentFiscalYear]);
 
-  const activeFiscalYearDates = getActiveFiscalYearDates();
+  // Get active fiscal year dates
+  const activeFiscalYearDates = selectedFiscalYear !== null 
+    ? getFiscalYearDates(selectedFiscalYear)
+    : getFiscalYearDates(currentFiscalYear);
 
   // Date filtering logic
   const isJobInDateRange = (job: any) => {
@@ -302,8 +202,15 @@ const Projects = () => {
       totalCost: Number(newJob.totalCost)
     };
 
-    // Add to jobs list
-    setJobs(prev => [...prev, newJobData]);
+    // Add to jobs list through dataService
+    const result = dataService.addJob(newJobData);
+    if (result.success && result.job) {
+      // Reload jobs to get proper allocation status
+      const jobsWithStatus = dataService.getAllJobsWithAllocationStatus();
+      setJobs(jobsWithStatus);
+    } else {
+      alert(`Error creating job: ${result.errors?.join(', ')}`);
+    }
 
     // Reset form and close modal
     setNewJob({
@@ -335,12 +242,33 @@ const Projects = () => {
     });
   };
 
-  // View job handler
-  const handleViewJob = (job: any) => {
-    setSelectedJob(job);
-    setIsEditMode(false);
-    setIsViewEditModalOpen(true);
+  // Allocation handlers
+  const handleOpenAllocation = (job: Job) => {
+    const jobWithAllocations = dataService.getJobWithAllocations(job.id);
+    if (jobWithAllocations) {
+      setSelectedJobForAllocation(jobWithAllocations);
+      setIsAllocationModalOpen(true);
+    }
   };
+
+  const handleAllocationUpdate = (updatedJob: JobWithAllocations) => {
+    const result = dataService.updateJobAllocations(updatedJob);
+    if (result.success) {
+      // Reload jobs to show updated allocation status
+      const jobsWithStatus = dataService.getAllJobsWithAllocationStatus();
+      setJobs(jobsWithStatus);
+      setIsAllocationModalOpen(false);
+      setSelectedJobForAllocation(null);
+    } else {
+      alert(`Error updating allocation: ${result.error}`);
+    }
+  };
+
+  const handleCloseAllocation = () => {
+    setIsAllocationModalOpen(false);
+    setSelectedJobForAllocation(null);
+  };
+
 
   // Edit job handler
   const handleEditJob = (job: any) => {
@@ -355,17 +283,26 @@ const Projects = () => {
     
     if (!selectedJob) return;
 
-    // Update the job in the jobs array
-    setJobs(prev => prev.map(job => 
-      job.id === selectedJob.id 
-        ? { 
-            ...selectedJob,
-            totalRevenue: Number(selectedJob.totalRevenue),
-            totalCost: Number(selectedJob.totalCost),
-            probability: selectedJob.type === 'Backlog' ? 100 : Number(selectedJob.probability)
-          }
-        : job
-    ));
+    // Update the job through dataService
+    const updateData = {
+      jobName: selectedJob.jobName,
+      market: selectedJob.market,
+      type: selectedJob.type,
+      probability: selectedJob.type === 'Backlog' ? 100 : Number(selectedJob.probability),
+      startDate: selectedJob.startDate,
+      endDate: selectedJob.endDate,
+      totalRevenue: Number(selectedJob.totalRevenue),
+      totalCost: Number(selectedJob.totalCost)
+    };
+
+    const result = dataService.updateJob(selectedJob.id, updateData);
+    if (result.success) {
+      // Reload jobs to show updated data
+      const jobsWithStatus = dataService.getAllJobsWithAllocationStatus();
+      setJobs(jobsWithStatus);
+    } else {
+      alert(`Error updating job: ${result.errors?.join(', ')}`);
+    }
 
     // Close modal
     setIsViewEditModalOpen(false);
@@ -377,14 +314,14 @@ const Projects = () => {
   const handleSelectedJobChange = (field: string, value: string | number) => {
     if (!selectedJob) return;
     
-    setSelectedJob(prev => ({
+    setSelectedJob((prev: any) => ({
       ...prev,
       [field]: value
     }));
 
     // Auto-set probability based on type
     if (field === 'type') {
-      setSelectedJob(prev => ({
+      setSelectedJob((prev: any) => ({
         ...prev,
         probability: value === 'Backlog' ? 100 : prev.probability
       }));
@@ -403,8 +340,15 @@ const Projects = () => {
     if (!selectedJob) return;
     
     if (window.confirm('Are you sure you want to delete this job?')) {
-      setJobs(prev => prev.filter(job => job.id !== selectedJob.id));
-      handleCloseViewEditModal();
+      const result = dataService.deleteJob(selectedJob.id);
+      if (result.success) {
+        // Reload jobs to show updated list
+        const jobsWithStatus = dataService.getAllJobsWithAllocationStatus();
+        setJobs(jobsWithStatus);
+        handleCloseViewEditModal();
+      } else {
+        alert(`Error deleting job: ${result.error}`);
+      }
     }
   };
 
@@ -428,13 +372,41 @@ const Projects = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Jobs</h1>
             <p className="text-lg text-gray-600">Manage your forecasting jobs and projects</p>
           </div>
-          <button 
-            onClick={() => setIsCreateJobModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
-          >
-            <span>+</span>
-            <span>Create New Job</span>
-          </button>
+          
+          <div className="flex items-center space-x-4">
+            {/* View Mode Toggle */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Table View
+              </button>
+              <button
+                onClick={() => setViewMode('monthly')}
+                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  viewMode === 'monthly'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Monthly View
+              </button>
+            </div>
+            
+            {/* Create Job Button */}
+            <button 
+              onClick={() => setIsCreateJobModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
+            >
+              <span>+</span>
+              <span>Create New Job</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -706,8 +678,16 @@ const Projects = () => {
         </div>
       </div>
 
-      {/* Jobs Table - Grouped by Market */}
-      <div className="space-y-6">
+      {/* Conditional View Rendering */}
+      {viewMode === 'monthly' ? (
+        <MonthlyView 
+          jobs={filteredJobs}
+          viewType="fiscal"
+          fiscalYear={selectedFiscalYear || currentFiscalYear}
+        />
+      ) : (
+        /* Jobs Table - Grouped by Market */
+        <div className="space-y-6">
         {filteredJobs.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
@@ -777,6 +757,9 @@ const Projects = () => {
                         Total Profit
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Allocation Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -820,19 +803,40 @@ const Projects = () => {
                             {formatCurrency(job.totalRevenue - job.totalCost)}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                              <div 
+                                className={`h-2 rounded-full ${
+                                  job.allocationStatus === 'complete' ? 'bg-green-600' :
+                                  job.allocationStatus === 'partial' ? 'bg-yellow-600' : 'bg-red-600'
+                                }`}
+                                style={{ width: `${job.allocationPercentage}%` }}
+                              ></div>
+                            </div>
+                            <span className={`text-xs font-medium ${
+                              job.allocationStatus === 'complete' ? 'text-green-600' :
+                              job.allocationStatus === 'partial' ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              {job.allocationPercentage.toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button 
-                            onClick={() => handleViewJob(job)}
-                            className="text-indigo-600 hover:text-indigo-900 mr-3"
-                          >
-                            View
-                          </button>
-                          <button 
-                            onClick={() => handleEditJob(job)}
-                            className="text-gray-600 hover:text-gray-900"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={() => handleOpenAllocation(job)}
+                              className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 hover:text-emerald-800 px-3 py-1 rounded-md transition-colors font-medium"
+                            >
+                              Allocate
+                            </button>
+                            <button 
+                              onClick={() => handleEditJob(job)}
+                              className="bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 px-3 py-1 rounded-md transition-colors font-medium"
+                            >
+                              Edit
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -843,7 +847,17 @@ const Projects = () => {
           );
         })
         )}
-      </div>
+        </div>
+      )}
+
+      {/* Allocation Modal */}
+      {isAllocationModalOpen && selectedJobForAllocation && (
+        <JobAllocationInterface
+          job={selectedJobForAllocation}
+          onJobUpdate={handleAllocationUpdate}
+          onClose={handleCloseAllocation}
+        />
+      )}
 
       {/* Create Job Modal */}
       {isCreateJobModalOpen && (
@@ -974,14 +988,12 @@ const Projects = () => {
                       Total Revenue ($) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       id="totalRevenue"
-                      min="0"
-                      step="0.01"
                       value={newJob.totalRevenue}
-                      onChange={(e) => handleNewJobChange('totalRevenue', e.target.value)}
+                      onChange={(e) => handleNewJobChange('totalRevenue', e.target.value.replace(/,/g, ''))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="0.00"
+                      placeholder="0"
                       required
                     />
                   </div>
@@ -992,14 +1004,12 @@ const Projects = () => {
                       Total Cost ($) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       id="totalCost"
-                      min="0"
-                      step="0.01"
                       value={newJob.totalCost}
-                      onChange={(e) => handleNewJobChange('totalCost', e.target.value)}
+                      onChange={(e) => handleNewJobChange('totalCost', e.target.value.replace(/,/g, ''))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="0.00"
+                      placeholder="0"
                       required
                     />
                   </div>
@@ -1196,12 +1206,10 @@ const Projects = () => {
                       Total Revenue ($) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       id="selectedTotalRevenue"
-                      min="0"
-                      step="0.01"
-                      value={selectedJob.totalRevenue}
-                      onChange={(e) => handleSelectedJobChange('totalRevenue', e.target.value)}
+                      value={isEditMode ? selectedJob.totalRevenue.toString() : formatCurrency(selectedJob.totalRevenue)}
+                      onChange={(e) => handleSelectedJobChange('totalRevenue', e.target.value.replace(/,/g, ''))}
                       disabled={!isEditMode}
                       className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
                         !isEditMode ? 'bg-gray-50 cursor-not-allowed' : ''
@@ -1216,12 +1224,10 @@ const Projects = () => {
                       Total Cost ($) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       id="selectedTotalCost"
-                      min="0"
-                      step="0.01"
-                      value={selectedJob.totalCost}
-                      onChange={(e) => handleSelectedJobChange('totalCost', e.target.value)}
+                      value={isEditMode ? selectedJob.totalCost.toString() : formatCurrency(selectedJob.totalCost)}
+                      onChange={(e) => handleSelectedJobChange('totalCost', e.target.value.replace(/,/g, ''))}
                       disabled={!isEditMode}
                       className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
                         !isEditMode ? 'bg-gray-50 cursor-not-allowed' : ''

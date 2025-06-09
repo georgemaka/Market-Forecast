@@ -186,7 +186,7 @@ const Users = () => {
   const handleSelectedUserChange = (field: string, value: string) => {
     if (!selectedUser) return;
     
-    setSelectedUser(prev => ({
+    setSelectedUser((prev: any) => ({
       ...prev,
       [field]: value
     }));
