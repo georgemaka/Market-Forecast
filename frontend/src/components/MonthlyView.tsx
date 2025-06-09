@@ -158,38 +158,50 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-between items-start">
+      <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-lg border border-gray-200/50 p-6 relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        
+        <div className="flex justify-between items-start relative">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Financial Dashboard</h2>
-            <p className="text-gray-600">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Financial Dashboard
+              </h2>
+            </div>
+            <p className="text-gray-600 font-medium">
               {viewType === 'fiscal' 
                 ? `Fiscal Year ${fiscalYear}-${(fiscalYear! + 1).toString().slice(-2)} Monthly Analysis`
                 : 'Rolling 12-Month Financial Performance'}
             </p>
           </div>
           
-          {/* View Toggle */}
-          <div className="flex space-x-2">
+          {/* Enhanced View Toggle */}
+          <div className="flex bg-white rounded-lg p-1 shadow-md border border-gray-200">
             <button
               onClick={() => setShowTable(false)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
                 !showTable 
-                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
-                  : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md transform scale-105' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              Charts
+              📊 Charts
             </button>
             <button
               onClick={() => setShowTable(true)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
                 showTable 
-                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
-                  : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md transform scale-105' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              Data Table
+              📋 Data Table
             </button>
           </div>
         </div>
@@ -655,22 +667,29 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({
       ) : (
         /* Charts View */
         <div className="space-y-6">
-          {/* Multi-Metric Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {/* Enhanced Multi-Metric Chart */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-shadow duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Monthly Financial Overview</h3>
-              <div className="flex items-center space-x-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded"></div>
-                  <span className="text-gray-600">Revenue</span>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded"></div>
-                  <span className="text-gray-600">Cost</span>
+                <h3 className="text-xl font-bold text-gray-900">Monthly Financial Overview</h3>
+              </div>
+              <div className="flex items-center space-x-6 text-sm">
+                <div className="flex items-center space-x-2 px-3 py-1 bg-emerald-50 rounded-full">
+                  <div className="w-3 h-3 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full shadow-sm"></div>
+                  <span className="text-emerald-700 font-medium">Revenue</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                  <span className="text-gray-600">Profit</span>
+                <div className="flex items-center space-x-2 px-3 py-1 bg-rose-50 rounded-full">
+                  <div className="w-3 h-3 bg-gradient-to-r from-rose-400 to-rose-600 rounded-full shadow-sm"></div>
+                  <span className="text-rose-700 font-medium">Cost</span>
+                </div>
+                <div className="flex items-center space-x-2 px-3 py-1 bg-violet-50 rounded-full">
+                  <div className="w-3 h-3 bg-gradient-to-r from-violet-400 to-violet-600 rounded-full shadow-sm"></div>
+                  <span className="text-violet-700 font-medium">Profit</span>
                 </div>
               </div>
             </div>
@@ -741,10 +760,10 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({
                       </div>
                     </div>
                     
-                    {/* Chart Area with Grid References */}
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    {/* Enhanced Chart Area with Grid References */}
+                    <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-xl p-4 border border-gray-100 hover:shadow-md transition-all duration-300">
                       {/* Grid Reference Lines */}
-                      <div className="flex justify-between text-xs text-gray-400 mb-2">
+                      <div className="flex justify-between text-xs text-gray-500 mb-3 font-medium">
                         <span>0</span>
                         <span>25%</span>
                         <span>50%</span>
@@ -753,92 +772,97 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({
                       </div>
                       
                       {/* Revenue Bar */}
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-xs text-green-600 w-12 flex-shrink-0">Rev</span>
-                        <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                      <div className="flex items-center space-x-3 mb-3 group">
+                        <span className="text-xs text-emerald-700 w-12 flex-shrink-0 font-semibold">Rev</span>
+                        <div className="flex-1 bg-gray-200 rounded-full h-5 relative overflow-hidden shadow-inner">
                           {/* Grid lines */}
                           <div className="absolute inset-0 flex">
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
                             <div className="w-1/4"></div>
                           </div>
                           <div
-                            className="bg-green-500 h-4 rounded-full transition-all duration-500 relative z-10"
+                            className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-5 rounded-full transition-all duration-700 relative z-10 shadow-md group-hover:from-emerald-500 group-hover:to-emerald-700"
                             style={{
                               width: `${globalMaxRevenue > 0 ? (month.revenue / globalMaxRevenue) * 100 : 0}%`
                             }}
                           ></div>
                         </div>
-                        <span className="text-xs text-green-700 font-medium w-24 text-right flex-shrink-0">
+                        <span className="text-xs text-emerald-800 font-bold w-24 text-right flex-shrink-0">
                           {formatCurrency(month.revenue)}
                         </span>
                       </div>
                       
                       {/* Cost Bar */}
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-xs text-red-600 w-12 flex-shrink-0">Cost</span>
-                        <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                      <div className="flex items-center space-x-3 mb-3 group">
+                        <span className="text-xs text-rose-700 w-12 flex-shrink-0 font-semibold">Cost</span>
+                        <div className="flex-1 bg-gray-200 rounded-full h-5 relative overflow-hidden shadow-inner">
                           {/* Grid lines */}
                           <div className="absolute inset-0 flex">
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
                             <div className="w-1/4"></div>
                           </div>
                           <div
-                            className="bg-red-500 h-4 rounded-full transition-all duration-500 relative z-10"
+                            className="bg-gradient-to-r from-rose-400 to-rose-600 h-5 rounded-full transition-all duration-700 relative z-10 shadow-md group-hover:from-rose-500 group-hover:to-rose-700"
                             style={{
                               width: `${globalMaxCost > 0 ? (month.cost / globalMaxCost) * 100 : 0}%`
                             }}
                           ></div>
                         </div>
-                        <span className="text-xs text-red-700 font-medium w-24 text-right flex-shrink-0">
+                        <span className="text-xs text-rose-800 font-bold w-24 text-right flex-shrink-0">
                           {formatCurrency(month.cost)}
                         </span>
                       </div>
                       
                       {/* Profit Bar */}
-                      <div className="flex items-center space-x-3">
-                        <span className={`text-xs w-12 flex-shrink-0 ${month.profit >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                      <div className="flex items-center space-x-3 group">
+                        <span className={`text-xs w-12 flex-shrink-0 font-semibold ${month.profit >= 0 ? 'text-violet-700' : 'text-rose-700'}`}>
                           Profit
                         </span>
-                        <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                        <div className="flex-1 bg-gray-200 rounded-full h-5 relative overflow-hidden shadow-inner">
                           {/* Grid lines */}
                           <div className="absolute inset-0 flex">
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
-                            <div className="w-1/4 border-r border-gray-300"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
+                            <div className="w-1/4 border-r border-gray-300/50"></div>
                             <div className="w-1/4"></div>
                           </div>
                           <div
-                            className={`h-4 rounded-full transition-all duration-500 relative z-10 ${
-                              month.profit >= 0 ? 'bg-purple-500' : 'bg-red-500'
+                            className={`h-5 rounded-full transition-all duration-700 relative z-10 shadow-md ${
+                              month.profit >= 0 
+                                ? 'bg-gradient-to-r from-violet-400 to-violet-600 group-hover:from-violet-500 group-hover:to-violet-700' 
+                                : 'bg-gradient-to-r from-rose-400 to-rose-600 group-hover:from-rose-500 group-hover:to-rose-700'
                             }`}
                             style={{
                               width: `${globalMaxProfit > 0 ? (Math.abs(month.profit) / globalMaxProfit) * 100 : 0}%`
                             }}
                           ></div>
                         </div>
-                        <span className={`text-xs font-medium w-24 text-right flex-shrink-0 ${
-                          month.profit >= 0 ? 'text-purple-700' : 'text-red-700'
+                        <span className={`text-xs font-bold w-24 text-right flex-shrink-0 ${
+                          month.profit >= 0 ? 'text-violet-800' : 'text-rose-800'
                         }`}>
                           {formatCurrency(month.profit)}
                         </span>
                       </div>
                     </div>
                     
-                    {/* Job count indicator - clickable */}
-                    <div className="flex justify-end">
+                    {/* Enhanced Job count indicator - clickable */}
+                    <div className="flex justify-end mt-2">
                       {month.jobCount > 0 ? (
                         <button
                           onClick={() => handleJobsClick(month)}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded transition-colors font-medium"
+                          className="group flex items-center space-x-2 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 px-3 py-2 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
                         >
-                          View {month.jobCount} job{month.jobCount !== 1 ? 's' : ''} →
+                          <span>View {month.jobCount} job{month.jobCount !== 1 ? 's' : ''}</span>
+                          <svg className="w-3 h-3 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400">No jobs</span>
+                        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">No jobs</span>
                       )}
                     </div>
                   </div>

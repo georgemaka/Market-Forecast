@@ -327,7 +327,7 @@ const Users = () => {
                 setSelectedRole('all');
                 setSelectedStatus('all');
               }}
-              className="px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors duration-200"
+              className="px-4 py-2.5 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-all duration-200 shadow-md hover:shadow-lg"
             >
               Clear Filters
             </button>
