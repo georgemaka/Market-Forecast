@@ -43,6 +43,36 @@ const Projects = () => {
     }
   }, [selectedFiscalYear, currentFiscalYear]);
 
+  // ESC key handler for closing modals
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (isAllocationModalOpen) {
+          setIsAllocationModalOpen(false);
+          setSelectedJobForAllocation(null);
+        } else if (isViewEditModalOpen) {
+          handleCloseViewEditModal();
+        } else if (isCreateJobModalOpen) {
+          setIsCreateJobModalOpen(false);
+          // Reset form
+          setNewJob({
+            jobName: '',
+            market: 'Environmental',
+            type: 'Backlog',
+            probability: 100,
+            startDate: '',
+            endDate: '',
+            totalRevenue: '',
+            totalCost: ''
+          });
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [isAllocationModalOpen, isViewEditModalOpen, isCreateJobModalOpen]);
+
   // Get active fiscal year dates
   const activeFiscalYearDates = selectedFiscalYear !== null 
     ? getFiscalYearDates(selectedFiscalYear)

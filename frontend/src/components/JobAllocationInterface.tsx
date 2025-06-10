@@ -100,10 +100,11 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
     const numValue = parseFormattedNumber(inputVal);
     const allocation = currentJob.monthlyAllocations.find(a => a.month === month);
     
+    // Always use projection for manual entries (actuals come from backend/uploads)
     const update: AllocationUpdate = {
       month,
       [field]: numValue,
-      allocationType: allocation?.allocationType || 'projection'
+      allocationType: 'projection'
     };
 
     const result = allocationService.updateMonthlyAllocation(currentJob, update);
@@ -138,25 +139,6 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
     }
   };
 
-  // Handle allocation type change (actual vs projection)
-  const handleAllocationTypeChange = (month: string, type: AllocationType) => {
-    const allocation = currentJob.monthlyAllocations.find(a => a.month === month);
-    if (!allocation) return;
-
-    const update: AllocationUpdate = {
-      month,
-      revenue: allocation.allocatedRevenue,
-      cost: allocation.allocatedCost,
-      allocationType: type
-    };
-
-    const result = allocationService.updateMonthlyAllocation(currentJob, update);
-    
-    if (result.success && result.job) {
-      setCurrentJob(result.job);
-      setUnsavedChanges(true);
-    }
-  };
 
   // Apply straight-line allocation
   const handleStraightLine = () => {
@@ -193,9 +175,9 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
   // Get allocation status styling
   const getStatusColor = (allocation: any) => {
     if (allocation.allocationType === 'actual') {
-      return 'bg-blue-50 border-blue-200';
+      return 'bg-blue-50 border-l-4 border-l-blue-400';
     }
-    return 'bg-gray-50 border-gray-200';
+    return '';
   };
 
   const getStatusLabel = (allocation: any) => {
@@ -204,11 +186,23 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
 
   const getStatusLabelColor = (allocation: any) => {
     return allocation.allocationType === 'actual' 
-      ? 'bg-blue-100 text-blue-800' 
-      : 'bg-gray-100 text-gray-800';
+      ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+      : 'bg-gray-100 text-gray-700 border border-gray-200';
   };
 
   const summary = currentJob.allocationSummary;
+
+  // ESC key handler for closing modal
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -334,6 +328,9 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                   : 'Full Job Duration'
                 }
               </p>
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="font-medium">Note:</span> Enter projections below. Actuals are imported from system and cannot be edited.
+              </p>
             </div>
             
             <div className="overflow-x-auto">
@@ -342,9 +339,6 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Month
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Revenue
@@ -356,14 +350,14 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                       Profit
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
+                      Status
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {visibleAllocations.map((allocation) => {
                     const profit = allocation.allocatedRevenue - allocation.allocatedCost;
-                    const isEditable = allocation.allocationType !== 'actual';
+                    const isActual = allocation.allocationType === 'actual';
                     
                     return (
                       <tr key={allocation.month} className={getStatusColor(allocation)}>
@@ -373,24 +367,14 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={allocation.allocationType}
-                            onChange={(e) => handleAllocationTypeChange(allocation.month, e.target.value as AllocationType)}
-                            className="text-xs rounded px-2 py-1 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="projection">Projection</option>
-                            <option value="actual">Actual</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <input
                             type="text"
                             value={getDisplayValue(allocation, 'revenue')}
                             onChange={(e) => handleAllocationUpdate(allocation.month, 'revenue', e.target.value)}
                             onBlur={() => handleInputBlur(allocation.month, 'revenue')}
-                            disabled={!isEditable}
+                            disabled={isActual}
                             className={`text-sm w-32 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-right ${
-                              !isEditable ? 'bg-gray-100 cursor-not-allowed' : ''
+                              isActual ? 'bg-blue-50 border-blue-200 cursor-not-allowed font-medium' : ''
                             }`}
                             placeholder="0"
                           />
@@ -401,9 +385,9 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                             value={getDisplayValue(allocation, 'cost')}
                             onChange={(e) => handleAllocationUpdate(allocation.month, 'cost', e.target.value)}
                             onBlur={() => handleInputBlur(allocation.month, 'cost')}
-                            disabled={!isEditable}
+                            disabled={isActual}
                             className={`text-sm w-32 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-right ${
-                              !isEditable ? 'bg-gray-100 cursor-not-allowed' : ''
+                              isActual ? 'bg-blue-50 border-blue-200 cursor-not-allowed font-medium' : ''
                             }`}
                             placeholder="0"
                           />
@@ -414,9 +398,16 @@ const JobAllocationInterface: React.FC<JobAllocationInterfaceProps> = ({
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusLabelColor(allocation)}`}>
-                            {getStatusLabel(allocation)}
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusLabelColor(allocation)}`}>
+                              {getStatusLabel(allocation)}
+                            </span>
+                            {isActual && (
+                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

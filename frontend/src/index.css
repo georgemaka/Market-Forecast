@@ -1,3 +1,93 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 18px; /* Increase base font size from default 16px */
+  }
+
+  body {
+    @apply text-gray-900 antialiased;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  /* Improve heading readability */
+  h1 {
+    @apply text-3xl font-bold tracking-tight;
+  }
+  
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  
+  h3 {
+    @apply text-xl font-semibold;
+  }
+  
+  h4 {
+    @apply text-lg font-medium;
+  }
+
+  /* Better table text */
+  table {
+    @apply text-base;
+  }
+
+  /* Improved form inputs */
+  input, select, textarea {
+    @apply text-base;
+  }
+
+  /* Better button text */
+  button {
+    @apply text-base font-medium;
+  }
+
+  /* Ensure small text is still readable */
+  .text-xs {
+    font-size: 0.75rem !important; /* 13.5px instead of 12px */
+  }
+
+  .text-sm {
+    font-size: 0.875rem !important; /* 15.75px instead of 14px */
+  }
+
+  /* Modal and card content */
+  .modal-content p,
+  .card-content p {
+    @apply text-base leading-relaxed;
+  }
+
+  /* Better table readability */
+  th {
+    @apply font-semibold text-base;
+  }
+
+  td {
+    @apply text-base;
+  }
+
+  /* Improve label visibility */
+  label {
+    @apply font-medium text-base;
+  }
+
+  /* Better modal text */
+  [role="dialog"] {
+    @apply text-base;
+  }
+
+  /* Improved badge and tag text */
+  .badge, .tag, [class*="badge"], [class*="tag"] {
+    @apply text-sm font-medium;
+  }
+
+  /* Number inputs and displays */
+  input[type="number"],
+  .currency-display,
+  .number-display {
+    @apply text-base font-medium;
+  }
+}

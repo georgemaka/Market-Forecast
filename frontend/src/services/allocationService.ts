@@ -286,11 +286,16 @@ class AllocationService {
    * Distribute remaining unallocated amounts
    */
   distributeRemainingAmounts(job: JobWithAllocations): JobWithAllocations {
+    // Get editable allocations (not actuals)
     const editableAllocations = job.monthlyAllocations.filter(a => a.allocationType !== 'actual');
     
     if (editableAllocations.length === 0) {
       return job;
     }
+    
+    // Find allocations with empty revenue and empty cost separately
+    const emptyRevenueAllocations = editableAllocations.filter(a => a.allocatedRevenue === 0);
+    const emptyCostAllocations = editableAllocations.filter(a => a.allocatedCost === 0);
     
     // Calculate remaining amounts using effective values
     const effectiveRevenue = getEffectiveRevenue(job);
@@ -302,22 +307,35 @@ class AllocationService {
     const remainingRevenue = effectiveRevenue - allocatedRevenue;
     const remainingCost = effectiveCost - allocatedCost;
     
-    if (remainingRevenue === 0 && remainingCost === 0) {
-      return job;
-    }
-    
-    const remainingRevenuePerMonth = remainingRevenue / editableAllocations.length;
-    const remainingCostPerMonth = remainingCost / editableAllocations.length;
+    // Calculate per-month amounts for revenue and cost separately
+    // Only distribute positive remaining amounts
+    const remainingRevenuePerMonth = emptyRevenueAllocations.length > 0 && remainingRevenue > 0
+      ? remainingRevenue / emptyRevenueAllocations.length 
+      : 0;
+    const remainingCostPerMonth = emptyCostAllocations.length > 0 && remainingCost > 0
+      ? remainingCost / emptyCostAllocations.length 
+      : 0;
     
     const distributedAllocations = job.monthlyAllocations.map(allocation => {
+      // Skip actuals
       if (allocation.allocationType === 'actual') {
         return allocation;
       }
       
+      // Distribute revenue and cost independently
+      // Only update if the field is currently zero
+      const newRevenue = allocation.allocatedRevenue === 0
+        ? remainingRevenuePerMonth
+        : allocation.allocatedRevenue;
+        
+      const newCost = allocation.allocatedCost === 0
+        ? remainingCostPerMonth
+        : allocation.allocatedCost;
+      
       return {
         ...allocation,
-        allocatedRevenue: allocation.allocatedRevenue + remainingRevenuePerMonth,
-        allocatedCost: allocation.allocatedCost + remainingCostPerMonth,
+        allocatedRevenue: newRevenue,
+        allocatedCost: newCost,
         lastUpdated: new Date().toISOString()
       };
     });

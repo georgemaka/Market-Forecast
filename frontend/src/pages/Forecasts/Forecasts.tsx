@@ -1,256 +1,512 @@
+/**
+ * Forecasts Page - Resource & Capacity Planning
+ * Equipment utilization, operator demand, and capacity analysis
+ */
+
+import { useState, useEffect } from 'react';
+import { dataService } from '../../services/dataService';
+import { calculateMonthlyBreakdown, calculateFiscalYearMonthlyBreakdown } from '../../utils/monthlyCalculations';
+import { formatCurrency, getCurrentFiscalYear } from '../../utils/calculations';
+
+interface EquipmentRequirement {
+  type: string;
+  required: number;
+  available: number;
+  utilization: number;
+  status: 'optimal' | 'overloaded' | 'underutilized';
+}
+
+interface MonthlyResourceForecast {
+  month: string;
+  monthLabel: string;
+  equipment: {
+    [key: string]: EquipmentRequirement;
+  };
+  operators: {
+    required: number;
+    available: number;
+    shortage: number;
+  };
+  totalRevenue: number;
+  jobCount: number;
+}
+
 const Forecasts = () => {
-  // Sample forecast data
-  const forecasts = [
-    {
-      id: 1,
-      title: "Construction Material Demand",
-      type: "Demand Forecast",
-      job: "Q4 Market Analysis",
-      accuracy: 94.2,
-      confidence: "High",
-      period: "Q1 2024",
-      trend: "up",
-      value: "+12.5%",
-      lastUpdated: "2024-02-15"
-    },
-    {
-      id: 2,
-      title: "Infrastructure Investment",
-      type: "Investment Forecast", 
-      job: "Infrastructure Demand Forecast",
-      accuracy: 87.8,
-      confidence: "Medium",
-      period: "Q2 2024",
-      trend: "up",
-      value: "+8.3%",
-      lastUpdated: "2024-02-12"
-    },
-    {
-      id: 3,
-      title: "Steel Price Projection",
-      type: "Price Forecast",
-      job: "Material Cost Projection",
-      accuracy: 91.5,
-      confidence: "High",
-      period: "Q1 2024",
-      trend: "down",
-      value: "-5.2%",
-      lastUpdated: "2024-02-10"
-    },
-    {
-      id: 4,
-      title: "Regional Growth Rate",
-      type: "Growth Forecast",
-      job: "Regional Growth Analysis",
-      accuracy: 89.1,
-      confidence: "Medium",
-      period: "2024",
-      trend: "up",
-      value: "+15.7%",
-      lastUpdated: "2024-02-08"
-    }
-  ];
+  const [forecastData, setForecastData] = useState<MonthlyResourceForecast[]>([]);
+  const [viewType, setViewType] = useState<'6month' | 'fiscal'>('6month');
+  const [selectedEquipment, setSelectedEquipment] = useState<string | null>(null);
+  const [currentFiscalYear] = useState(getCurrentFiscalYear());
 
-  const getConfidenceColor = (confidence: string) => {
-    switch (confidence.toLowerCase()) {
-      case 'high':
-        return 'bg-green-100 text-green-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  // Equipment definitions by market
+  const equipmentByMarket = {
+    'Environmental': {
+      'Excavators': { ratio: 0.8, priority: 'high' },
+      'Dozers': { ratio: 0.6, priority: 'medium' },
+      'Compactors': { ratio: 0.4, priority: 'medium' },
+      'Graders': { ratio: 0.2, priority: 'low' },
+      'Scrapers': { ratio: 0.3, priority: 'low' }
+    },
+    'Solar': {
+      'Excavators': { ratio: 0.5, priority: 'medium' },
+      'Pile Drivers': { ratio: 1.0, priority: 'high' },
+      'Compactors': { ratio: 0.6, priority: 'high' },
+      'Graders': { ratio: 0.3, priority: 'medium' },
+      'Dozers': { ratio: 0.4, priority: 'low' }
+    },
+    'Residential': {
+      'Excavators': { ratio: 0.6, priority: 'high' },
+      'Compactors': { ratio: 0.5, priority: 'medium' },
+      'Graders': { ratio: 0.4, priority: 'medium' },
+      'Scrapers': { ratio: 0.2, priority: 'low' },
+      'Dozers': { ratio: 0.3, priority: 'low' }
+    },
+    'Public Works': {
+      'Graders': { ratio: 0.8, priority: 'high' },
+      'Compactors': { ratio: 0.7, priority: 'high' },
+      'Excavators': { ratio: 0.6, priority: 'medium' },
+      'Scrapers': { ratio: 0.5, priority: 'medium' },
+      'Dozers': { ratio: 0.4, priority: 'low' }
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    return trend === 'up' ? '↗️' : '↘️';
+  // Current equipment inventory (you can make this configurable later)
+  const equipmentInventory = {
+    'Excavators': 12,
+    'Dozers': 8,
+    'Compactors': 6,
+    'Graders': 4,
+    'Scrapers': 5,
+    'Pile Drivers': 3
   };
 
-  const getTrendColor = (trend: string) => {
-    return trend === 'up' ? 'text-green-600' : 'text-red-600';
+  // Calculate equipment requirements based on jobs
+  const calculateEquipmentRequirements = (jobs: any[], month: string) => {
+    const requirements: { [key: string]: number } = {};
+    
+    // Initialize all equipment types
+    Object.keys(equipmentInventory).forEach(type => {
+      requirements[type] = 0;
+    });
+
+    jobs.forEach(job => {
+      if (job.monthlyRevenue > 0) {
+        const marketEquipment = equipmentByMarket[job.market as keyof typeof equipmentByMarket];
+        if (marketEquipment) {
+          Object.entries(marketEquipment).forEach(([equipType, config]) => {
+            // Calculate requirement based on job size and market type
+            const jobSize = job.monthlyRevenue / 100000; // Normalize to 100k units
+            const baseRequirement = jobSize * config.ratio;
+            requirements[equipType] = (requirements[equipType] || 0) + baseRequirement;
+          });
+        }
+      }
+    });
+
+    // Round up requirements and create status
+    const equipmentStatus: { [key: string]: EquipmentRequirement } = {};
+    Object.entries(requirements).forEach(([type, required]) => {
+      const roundedRequired = Math.ceil(required);
+      const available = equipmentInventory[type as keyof typeof equipmentInventory] || 0;
+      const utilization = available > 0 ? (roundedRequired / available) * 100 : 0;
+      
+      let status: 'optimal' | 'overloaded' | 'underutilized' = 'optimal';
+      if (utilization > 100) status = 'overloaded';
+      else if (utilization < 50) status = 'underutilized';
+
+      equipmentStatus[type] = {
+        type,
+        required: roundedRequired,
+        available,
+        utilization,
+        status
+      };
+    });
+
+    return equipmentStatus;
   };
+
+  // Calculate operator requirements (simplified: 1 operator per heavy equipment)
+  const calculateOperatorRequirements = (equipment: { [key: string]: EquipmentRequirement }) => {
+    const heavyEquipment = ['Excavators', 'Dozers', 'Graders', 'Scrapers', 'Pile Drivers'];
+    const required = heavyEquipment.reduce((sum, type) => {
+      return sum + (equipment[type]?.required || 0);
+    }, 0);
+    
+    const available = 45; // Current operator count (configurable later)
+    const shortage = Math.max(0, required - available);
+
+    return { required, available, shortage };
+  };
+
+  useEffect(() => {
+    const jobs = dataService.getAllJobs();
+    const monthlyData = viewType === 'fiscal' 
+      ? calculateFiscalYearMonthlyBreakdown(jobs, currentFiscalYear)
+      : calculateMonthlyBreakdown(jobs, 6);
+
+    const resourceForecast: MonthlyResourceForecast[] = monthlyData.months.map(month => {
+      const equipment = calculateEquipmentRequirements(month.jobs, month.month);
+      const operators = calculateOperatorRequirements(equipment);
+
+      return {
+        month: month.month,
+        monthLabel: month.monthLabel,
+        equipment,
+        operators,
+        totalRevenue: month.revenue,
+        jobCount: month.jobs.length
+      };
+    });
+
+    setForecastData(resourceForecast);
+  }, [viewType, currentFiscalYear]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'overloaded': return 'text-red-600 bg-red-50';
+      case 'underutilized': return 'text-yellow-600 bg-yellow-50';
+      default: return 'text-green-600 bg-green-50';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'overloaded': return '🚨';
+      case 'underutilized': return '⚠️';
+      default: return '✅';
+    }
+  };
+
+  // Equipment detail modal
+  const handleEquipmentClick = (equipmentType: string) => {
+    setSelectedEquipment(equipmentType);
+  };
+
+  // ESC key handler
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedEquipment) {
+        setSelectedEquipment(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [selectedEquipment]);
 
   return (
     <div className="space-y-6">
-      {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-slate-50 via-blue-50 to-indigo-50 rounded-2xl shadow-xl p-8 border border-gray-200/50 relative overflow-hidden">
-        {/* Background decorative elements */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-600/10 rounded-full -translate-y-16 translate-x-16"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-400/10 to-cyan-600/10 rounded-full translate-y-12 -translate-x-12"></div>
-        
-        <div className="flex justify-between items-center relative">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-50 via-green-50 to-emerald-50 rounded-2xl shadow-xl p-8">
+        <div className="flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H7a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-indigo-900 to-purple-900 bg-clip-text text-transparent mb-1">Forecasts</h1>
-              <p className="text-lg text-gray-600 font-medium">View and manage market forecasts and predictions</p>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-green-900 to-emerald-900 bg-clip-text text-transparent mb-1">
+                Resource Forecast
+              </h1>
+              <p className="text-lg text-gray-600 font-medium">
+                Equipment utilization and capacity planning
+              </p>
             </div>
           </div>
-          <button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span>New Forecast</span>
-          </button>
+
+          {/* View Toggle */}
+          <div className="flex bg-white rounded-xl p-1.5 shadow-lg border border-gray-200">
+            <button
+              onClick={() => setViewType('6month')}
+              className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                viewType === '6month'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md transform scale-105'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <span>6 Month View</span>
+            </button>
+            <button
+              onClick={() => setViewType('fiscal')}
+              className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                viewType === 'fiscal'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md transform scale-105'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <span>Fiscal Year</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Enhanced Stats Cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center">
-            <div className="p-3 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Total Equipment Utilization */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Avg Equipment Utilization</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {forecastData.length > 0 
+                  ? Math.round(forecastData.reduce((sum, month) => {
+                      const avgUtil = Object.values(month.equipment).reduce((s, eq) => s + eq.utilization, 0) / Object.values(month.equipment).length;
+                      return sum + avgUtil;
+                    }, 0) / forecastData.length)
+                  : 0}%
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">48</p>
-              <p className="text-sm text-gray-500 font-medium">Total Forecasts</p>
-            </div>
           </div>
         </div>
-        
-        <div className="bg-gradient-to-br from-white to-emerald-50 p-6 rounded-xl shadow-lg border border-emerald-100 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center">
-            <div className="p-3 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+
+        {/* Peak Demand Month */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Peak Demand Month</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {forecastData.length > 0 
+                  ? forecastData.reduce((max, month) => 
+                      month.totalRevenue > max.totalRevenue ? month : max
+                    ).monthLabel 
+                  : 'N/A'}
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-800 bg-clip-text text-transparent">92.1%</p>
-              <p className="text-sm text-gray-500 font-medium">Avg Accuracy</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-lg border border-purple-100 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center">
-            <div className="p-3 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">12</p>
-              <p className="text-sm text-gray-500 font-medium">Active Models</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center">
-            <div className="p-3 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
-            <div className="ml-4">
-              <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-800 bg-clip-text text-transparent">156</p>
-              <p className="text-sm text-gray-500 font-medium">Predictions</p>
+          </div>
+        </div>
+
+        {/* Operator Shortage */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Max Operator Shortage</p>
+              <p className="text-2xl font-bold text-red-600">
+                {forecastData.length > 0 
+                  ? Math.max(...forecastData.map(month => month.operators.shortage))
+                  : 0}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Revenue at Risk */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Revenue at Risk</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {formatCurrency(forecastData.reduce((sum, month) => {
+                  const hasOverload = Object.values(month.equipment).some(eq => eq.status === 'overloaded');
+                  return hasOverload ? sum + month.totalRevenue * 0.2 : sum; // 20% revenue at risk
+                }, 0))}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Forecasts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {forecasts.map((forecast) => (
-          <div key={forecast.id} className="bg-white rounded-xl shadow-lg border border-gray-200/50 p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-900 bg-clip-text text-transparent mb-1">{forecast.title}</h3>
-                <p className="text-sm text-gray-500 font-medium">{forecast.type} • {forecast.job}</p>
-              </div>
-              <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-full shadow-md ${getConfidenceColor(forecast.confidence)}`}>
-                {forecast.confidence} Confidence
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="p-3 bg-gradient-to-r from-white to-blue-50 rounded-lg">
-                <p className="text-sm text-gray-500 font-medium">Accuracy</p>
-                <p className="text-lg font-bold text-blue-600">{forecast.accuracy}%</p>
-              </div>
-              <div className="p-3 bg-gradient-to-r from-white to-purple-50 rounded-lg">
-                <p className="text-sm text-gray-500 font-medium">Period</p>
-                <p className="text-lg font-bold text-purple-600">{forecast.period}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-100">
-              <div className="flex items-center space-x-3">
-                <div className={`p-2 rounded-full ${forecast.trend === 'up' ? 'bg-emerald-100' : 'bg-rose-100'}`}>
-                  <svg className={`w-5 h-5 ${forecast.trend === 'up' ? 'text-emerald-600' : 'text-rose-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={forecast.trend === 'up' ? "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" : "M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"} />
-                  </svg>
+      {/* Equipment Utilization Table */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Equipment Utilization Forecast</h2>
+          <p className="text-sm text-gray-600 mt-1">Click equipment type for detailed breakdown</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Equipment</th>
+                {forecastData.map((month) => (
+                  <th key={month.month} className="px-4 py-4 text-center text-sm font-semibold text-gray-900 min-w-32">
+                    {month.monthLabel}
+                  </th>
+                ))}
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 bg-blue-50">
+                  Inventory
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {Object.keys(equipmentInventory).map((equipType) => (
+                <tr key={equipType} className="hover:bg-gray-50 transition-colors">
+                  <td 
+                    className="px-6 py-4 text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600"
+                    onClick={() => handleEquipmentClick(equipType)}
+                  >
+                    {equipType}
+                  </td>
+                  {forecastData.map((month) => {
+                    const equipment = month.equipment[equipType];
+                    if (!equipment) return (
+                      <td key={`${equipType}-${month.month}`} className="px-4 py-4 text-center text-sm text-gray-400">
+                        0/0
+                      </td>
+                    );
+
+                    return (
+                      <td 
+                        key={`${equipType}-${month.month}`}
+                        className={`px-4 py-4 text-center text-sm font-medium cursor-pointer hover:bg-gray-100 ${getStatusColor(equipment.status)}`}
+                        onClick={() => handleEquipmentClick(equipType)}
+                      >
+                        <div className="flex flex-col items-center">
+                          <span>{equipment.required}/{equipment.available}</span>
+                          <span className="text-xs">
+                            {getStatusIcon(equipment.status)} {equipment.utilization.toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 bg-blue-50">
+                    {equipmentInventory[equipType as keyof typeof equipmentInventory]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Operator Requirements */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Operator Requirements</h2>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Metric</th>
+                {forecastData.map((month) => (
+                  <th key={month.month} className="px-4 py-4 text-center text-sm font-semibold text-gray-900">
+                    {month.monthLabel}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              <tr>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">Required</td>
+                {forecastData.map((month) => (
+                  <td key={`req-${month.month}`} className="px-4 py-4 text-center text-sm font-medium text-gray-900">
+                    {month.operators.required}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">Available</td>
+                {forecastData.map((month) => (
+                  <td key={`avail-${month.month}`} className="px-4 py-4 text-center text-sm font-medium text-green-600">
+                    {month.operators.available}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">Shortage</td>
+                {forecastData.map((month) => (
+                  <td key={`short-${month.month}`} className={`px-4 py-4 text-center text-sm font-medium ${
+                    month.operators.shortage > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {month.operators.shortage > 0 ? `+${month.operators.shortage}` : '✓'}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Equipment Detail Modal */}
+      {selectedEquipment && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="space-y-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedEquipment} Utilization Detail</h3>
+                  <p className="text-gray-600">Current inventory: {equipmentInventory[selectedEquipment as keyof typeof equipmentInventory]} units</p>
                 </div>
-                <span className={`text-xl font-bold ${getTrendColor(forecast.trend)}`}>
-                  {forecast.value}
-                </span>
+                <button
+                  onClick={() => setSelectedEquipment(null)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
               </div>
-              <p className="text-sm text-gray-500 font-medium">vs previous period</p>
-            </div>
-            
-            <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500 font-medium">Updated: {forecast.lastUpdated}</p>
-              <div className="flex space-x-2">
-                <button className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 hover:text-indigo-800 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200">View Details</button>
-                <button className="bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-800 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200">Export</button>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Required</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Available</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Utilization</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {forecastData.map((month) => {
+                      const equipment = month.equipment[selectedEquipment];
+                      if (!equipment) return null;
+
+                      return (
+                        <tr key={month.month}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {month.monthLabel}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {equipment.required}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {equipment.available}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {equipment.utilization.toFixed(1)}%
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              equipment.status === 'overloaded' ? 'bg-red-100 text-red-800' :
+                              equipment.status === 'underutilized' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {equipment.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Enhanced Quick Actions */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200/50 p-6 hover:shadow-xl transition-all duration-300">
-        <h3 className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-900 bg-clip-text text-transparent mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center justify-center p-6 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group">
-            <div className="text-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl mx-auto mb-3 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-200">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <p className="text-sm font-bold text-gray-900">Generate Forecast</p>
-              <p className="text-xs text-gray-500 font-medium">Create new prediction</p>
-            </div>
-          </button>
-          
-          <button className="flex items-center justify-center p-6 border-2 border-dashed border-emerald-300 rounded-xl hover:border-emerald-400 hover:bg-emerald-50 transition-all duration-200 group">
-            <div className="text-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl mx-auto mb-3 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-200">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-sm font-bold text-gray-900">Compare Models</p>
-              <p className="text-xs text-gray-500 font-medium">Analyze accuracy</p>
-            </div>
-          </button>
-          
-          <button className="flex items-center justify-center p-6 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 group">
-            <div className="text-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl mx-auto mb-3 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-200">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <p className="text-sm font-bold text-gray-900">Export Data</p>
-              <p className="text-xs text-gray-500 font-medium">Download results</p>
-            </div>
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };

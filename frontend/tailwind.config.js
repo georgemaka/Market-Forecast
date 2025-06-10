@@ -6,6 +6,16 @@ export default {
   ],
   theme: {
     extend: {
+      fontSize: {
+        'xs': ['0.8125rem', { lineHeight: '1.5' }],    // 14.625px (was 12px)
+        'sm': ['0.9375rem', { lineHeight: '1.5' }],    // 16.875px (was 14px)
+        'base': ['1.0625rem', { lineHeight: '1.6' }],  // 19.125px (was 16px)
+        'lg': ['1.1875rem', { lineHeight: '1.6' }],    // 21.375px (was 18px)
+        'xl': ['1.375rem', { lineHeight: '1.5' }],     // 24.75px (was 20px)
+        '2xl': ['1.625rem', { lineHeight: '1.4' }],    // 29.25px (was 24px)
+        '3xl': ['2rem', { lineHeight: '1.3' }],        // 36px (was 30px)
+        '4xl': ['2.5rem', { lineHeight: '1.2' }],      // 45px (was 36px)
+      },
       colors: {
         primary: {
           50: '#eff6ff',
